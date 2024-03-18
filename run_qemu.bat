@@ -1,0 +1,1 @@
+qemu-system-x86_64 -bios ./ovmf/RELEASEX64_OVMF.fd -hdd fat:rw:./bin/
