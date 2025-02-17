@@ -84,15 +84,15 @@ public static unsafe class GraphicsOutputProtocol
     public static void Print(char c) {
         if(c == '\n') {
             CursorPositionX = 0;
-            CursorPositionY += 16;
+            CursorPositionY += 12;
             return;
         }
 
         PutChar(c, CursorPositionX, CursorPositionY);
-        CursorPositionX += 12;
-        if (CursorPositionX >= 800) {
+        CursorPositionX += 7;
+        if (CursorPositionX >= gop->Mode->Info->HorizontalResolution - 7) {
             CursorPositionX = 0;
-            CursorPositionY += 16;
+            CursorPositionY += 12;
         }
     }
 
@@ -118,19 +118,30 @@ public static unsafe class GraphicsOutputProtocol
         int ix = 0;
         int iy = 0;
 
-        for (byte i = 0; i < 32; i++) {
+        for (byte i = 0; i < 12; i++) {
             byte curr_byte = charmap_byte((byte)c, i);
 
             for (int j = 0; j < 8; j++) {
                 if ((curr_byte & (1 << j)) != 0) {
-                    GraphicsOutputProtocol.PlotPixel32bpp(x + 12 - ix, y + iy, 0x00FFFFFF);
+                    GraphicsOutputProtocol.PlotPixel32bpp(x + ix, y + iy, 0x00FFFFFF);
                 }
                 ix++;
-                if(ix >= 12) {
+                if(ix >= 7) {
                     ix = 0;
                     iy++;
                     break;
                 }
+            }
+        }
+    }
+
+    public static void DrawRectangle(int x, int y, int width, int height, uint color)
+    {
+        for (int iy = y; iy < y + height; iy++)
+        {
+            for (int ix = x; ix < x + width; ix++)
+            {
+                GraphicsOutputProtocol.PlotPixel32bpp(ix, iy, color);
             }
         }
     }
