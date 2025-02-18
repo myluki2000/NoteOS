@@ -1,7 +1,10 @@
 qemu-system-x86_64 ^
+  -debugcon stdio ^
+  -global isa-debugcon.iobase=0xe9 ^
   -d guest_errors ^
   -bios ./ovmf/RELEASEX64_OVMF.fd ^
   -m 2G ^
+  -trace ahci* ^
   -device ahci,id=ahci ^
   -drive id=drive1,file=fat:rw:./bin/,if=none,format=raw ^
   -device ide-hd,drive=drive1,bus=ahci.0 ^

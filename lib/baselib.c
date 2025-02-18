@@ -286,3 +286,7 @@ uint32_t inl(uint16_t port) {
 uint8_t charmap_byte(uint8_t c, uint8_t i) {
     return font[c][i];
 }
+
+void mfence() {
+    _mm_mfence();
+}

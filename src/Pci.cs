@@ -4,23 +4,36 @@ using System.Collections.Generic;
 namespace NoteOS;
 
 public static class Pci {
-    private static ushort ReadConfigWord(byte bus, byte slot, byte func, byte offset) {
+    private static uint ReadConfigDWord(byte bus, byte slot, byte func, byte offset) {
         uint address;
         uint lbus = bus;
         uint lslot = slot;
         uint lfunc = func;
-        ushort tmp = 0;
 
         // create configuration address
         address = (uint)((lbus << 16) | (lslot << 11) |
-              (lfunc << 8) | (offset & 0xFC) | ((uint)0x80000000));
+              (lfunc << 8) | offset | ((uint)0x80000000));
 
         // write out the address
         IoPorts.outl(0xCF8, address);
         // read in the data
-        // (offset & 2) * 8) = 0 will choose the first word of the 32-bit register
-        tmp = (ushort)((IoPorts.inl(0xCFC) >> ((offset & 2) * 8)) & 0xFFFF);
-        return tmp;
+        return IoPorts.inl(0xCFC);
+    }
+
+    private static void WriteConfigDWord(byte bus, byte slot, byte func, byte offset, uint value) {
+        uint address;
+        uint lbus = bus;
+        uint lslot = slot;
+        uint lfunc = func;
+
+        // create configuration address
+        address = (uint)((lbus << 16) | (lslot << 11) |
+              (lfunc << 8) | offset | ((uint)0x80000000));
+
+        // write out the address
+        IoPorts.outl(0xCF8, address);
+        // write out the data
+        IoPorts.outl(0xCFC, value);
     }
 
     public static bool SlotHasDevice(byte bus, byte slot) {
@@ -37,32 +50,109 @@ public static class Pci {
         public byte Bus { get; }
         public byte Slot { get; }
 
-        public ushort VendorId => ReadConfigWord(Bus, Slot, 0, 0);
+        public ushort VendorId => (ushort)ReadConfigDWord(Bus, Slot, 0, 0);
 
-        public ushort DeviceId => ReadConfigWord(Bus, Slot, 0, 2);
+        public ushort DeviceId => (ushort)(ReadConfigDWord(Bus, Slot, 0, 0) >> 16);
 
-        public byte ClassId => (byte)(ReadConfigWord(Bus, Slot, 0, 0x0A) >> 8);
+        public byte ClassId => (byte)(ReadConfigDWord(Bus, Slot, 0, 0x8) >> 24);
 
-        public byte SubclassId => (byte)(ReadConfigWord(Bus, Slot, 0, 0x0A) & 0xFF);
+        public byte SubclassId => (byte)(ReadConfigDWord(Bus, Slot, 0, 0x8) >> 16);
 
-        public byte ProgrammingInterface => (byte)(ReadConfigWord(Bus, Slot, 0, 0x09) >> 8);
+        public byte ProgrammingInterface => (byte)(ReadConfigDWord(Bus, Slot, 0, 0x8) >> 8);
 
-        public ushort Status => ReadConfigWord(Bus, Slot, 0, 4);
+        public ushort Status => (ushort)(ReadConfigDWord(Bus, Slot, 0, 0x4) >> 16);
 
-        public ushort ReadWord(byte func, byte offset) {
-            return ReadConfigWord(Bus, Slot, func, offset);
+        public bool MemorySpaceEnabled {
+            get => (ReadConfigDWord(Bus, Slot, 0, 0x4) & MEMORY_SPACE_ENABLED_BITMASK) != 0;
+            set {
+                uint configValue = (ushort)ReadConfigDWord(Bus, Slot, 0, 0x4);
+
+                if(value) {
+                    configValue |= MEMORY_SPACE_ENABLED_BITMASK;
+                } else {
+                    configValue &= ~MEMORY_SPACE_ENABLED_BITMASK;
+                }
+            }
         }
 
-        public byte ReadByte(byte func, byte offset) {
-            return (byte)(ReadConfigWord(Bus, Slot, func, offset) & 0xFF);
+        public bool IoSpaceEnabled {
+            get => (ReadConfigDWord(Bus, Slot, 0, 0x4) & IO_SPACE_ENABLED_BITMASK) != 0;
+            set {
+                uint configValue = (ushort)ReadConfigDWord(Bus, Slot, 0, 0x4);
+
+                if(value) {
+                    configValue |= IO_SPACE_ENABLED_BITMASK;
+                } else {
+                    configValue &= ~IO_SPACE_ENABLED_BITMASK;
+                }
+            }
         }
 
-        public uint ReadDword(byte func, byte offset) {
-            return ReadConfigWord(Bus, Slot, func, offset) | (uint)ReadConfigWord(Bus, Slot, func, (byte)(offset + 2)) << 16;
+        public bool BusMasterEnabled {
+            get => (ReadConfigDWord(Bus, Slot, 0, 0x4) & BUS_MASTER_ENABLED_BITMASK) != 0;
+            set {
+                uint configValue = (ushort)ReadConfigDWord(Bus, Slot, 0, 0x4);
+
+                if(value) {
+                    configValue |= BUS_MASTER_ENABLED_BITMASK;
+                } else {
+                    configValue &= ~BUS_MASTER_ENABLED_BITMASK;
+                }
+            }
         }
 
-        public ulong ReadQword(byte func, byte offset) {
-            return ReadConfigWord(Bus, Slot, func, offset) | (ulong)ReadConfigWord(Bus, Slot, func, (byte)(offset + 2)) << 16 | (ulong)ReadConfigWord(Bus, Slot, func, (byte)(offset + 4)) << 32 | (ulong)ReadConfigWord(Bus, Slot, func, (byte)(offset + 6)) << 48;
+        public bool ParityErrorResponse {
+            get => (ReadConfigDWord(Bus, Slot, 0, 0x4) & PARITY_ERROR_RESPONSE_BITMASK) != 0;
+            set {
+                uint configValue = (ushort)ReadConfigDWord(Bus, Slot, 0, 0x4);
+
+                if(value) {
+                    configValue |= PARITY_ERROR_RESPONSE_BITMASK;
+                } else {
+                    configValue &= ~PARITY_ERROR_RESPONSE_BITMASK;
+                }
+            }
+        }
+
+        public bool SerrEnabled {
+            get => (ReadConfigDWord(Bus, Slot, 0, 0x4) & SERR_ENABLED_BITMASK) != 0;
+            set {
+                uint configValue = (ushort)ReadConfigDWord(Bus, Slot, 0, 0x4);
+
+                if(value) {
+                    configValue |= SERR_ENABLED_BITMASK;
+                } else {
+                    configValue &= ~SERR_ENABLED_BITMASK;
+                }
+            }
+        }
+
+        public bool InterruptDisabled {
+            get => (ReadConfigDWord(Bus, Slot, 0, 0x4) & INTERRUPT_DISABLED_BITMASK) != 0;
+            set {
+                uint configValue = (ushort)ReadConfigDWord(Bus, Slot, 0, 0x4);
+
+                if(value) {
+                    configValue |= INTERRUPT_DISABLED_BITMASK;
+                } else {
+                    configValue &= ~INTERRUPT_DISABLED_BITMASK;
+                }
+            }
+        }
+
+        private const uint MEMORY_SPACE_ENABLED_BITMASK = 0b10;
+        private const uint IO_SPACE_ENABLED_BITMASK = 0b1;
+        private const uint BUS_MASTER_ENABLED_BITMASK = 0b100;
+        private const uint PARITY_ERROR_RESPONSE_BITMASK = 0b1000000;
+        private const uint SERR_ENABLED_BITMASK = 0b100000000;
+        private const uint INTERRUPT_DISABLED_BITMASK = 0b10000000000;
+
+        public uint ReadDWord(byte func, byte offset) {
+            return ReadConfigDWord(Bus, Slot, func, offset);
+        }
+
+        public ulong ReadQWord(byte func, byte offset) {
+            return (ulong)ReadConfigDWord(Bus, Slot, func, offset) | ((ulong)ReadConfigDWord(Bus, Slot, func, (byte)(offset + 4)) << 32);
         }
     }
 

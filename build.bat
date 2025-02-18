@@ -62,6 +62,6 @@ cd ./../
 
 cd ./src
 
-.\..\bflat\layouts\windows-x64\bflat.exe build -o ../bin/efi/boot/bootx64.efi --stdlib zero --os uefi --ldflags C:/Users/lukas/Desktop/NoteOS/lib/baselib.lib -i baselib --verbose -x
+.\..\bflat\layouts\windows-x64\bflat.exe build --no-optimization -o ../bin/efi/boot/bootx64.efi --stdlib zero --os uefi --ldflags C:/Users/lukas/Desktop/NoteOS/lib/baselib.lib -i baselib --verbose -x
 
 PAUSE

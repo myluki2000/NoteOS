@@ -1,5 +1,4 @@
 using System;
-using System.Threading;
 using Internal.Runtime.CompilerHelpers;
 using System.Runtime.InteropServices;
 using NoteOS.ExtensionMethods;
