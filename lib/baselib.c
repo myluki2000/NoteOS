@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdlib.h>
 
 const char font[256][12]={
     {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00},	// 0x00
@@ -289,4 +290,36 @@ uint8_t charmap_byte(uint8_t c, uint8_t i) {
 
 void mfence() {
     _mm_mfence();
+}
+
+void* memset(void* dest, int c, size_t count) {
+    char* bytes = (char*)dest;
+    for (size_t i = 0; i < count; i++) {
+        bytes[i] = (char)c;
+    }
+
+    return dest;
+}
+
+void* memcpy(void* dest, const void* src, size_t count) {
+    char* d = (char*)dest;
+    const char* s = (const char*)src;
+    for (size_t i = 0; i < count; i++) {
+        d[i] = s[i];
+    }
+
+    return dest;
+}
+
+void debugPrint(char* c) {
+    while(*c != 0) {
+        outb(0xE9, *c);
+        c++;
+    }
+}
+
+void RhpByRefAssignRef(void** dest, void** src) {
+    *dest = *src;
+    dest += 8;
+    src += 8;
 }

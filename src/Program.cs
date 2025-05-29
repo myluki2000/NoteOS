@@ -1,8 +1,11 @@
 using System;
+using System.Numerics;
+using System.Diagnostics;
 using Internal.Runtime.CompilerHelpers;
 using NoteOS.ExtensionMethods;
 using NoteOS.EfiProtocols;
 using NoteOS.Ahci;
+using NoteOS.Fat;
 using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
 
@@ -133,11 +136,7 @@ public unsafe static class Program
             }
         }
 
-        if (!ahciController.HasValue)
-        {
-            GraphicsOutputProtocol.PrintLine("No AHCI controller found.");
-            while (true) { }
-        }
+        Debug.Assert(ahciController.HasValue, "No AHCI controller found.");
 
         int foundDisks = 0;
         for (int i = 0; i < 32; i++)
@@ -157,42 +156,32 @@ public unsafe static class Program
         GraphicsOutputProtocol.Print("Found disks:");
         GraphicsOutputProtocol.PrintLine(foundDisks.ToString());
 
-        // try to write to disk 1
-        ushort[] buffer = new ushort[256];
-        buffer[0] = 0xDEAD;
-        buffer[1] = 0xBEEF;
+        FatDrive drive = new FatDrive(&ahciController.Value.AhciBaseMemoryPtr->Ports[1]);
 
-        GraphicsOutputProtocol.PrintLine("AHCI Controller write...");
-        fixed(ushort* bufferPtr = &buffer[0]) {
-            Debug.WriteLine("Writing to disk 1...");
-            bool result = ahciController.Value.AhciBaseMemoryPtr->Ports[1].Write(0x0, 0x0, 1, bufferPtr);
-            Debug.WriteLine("Write complete.");
-            GraphicsOutputProtocol.Print("Result:");
-            GraphicsOutputProtocol.PrintLine(result.ToString());
+        int volumeIndex = -1;
+        for(int i = 0; i < 4; i++) {
+            if(drive.Volumes[i].HasValue) {
+                Debug.WriteLine("Volume found.");
+                volumeIndex = i;
+                break;
+            }
         }
+        Debug.Assert(volumeIndex >= 0, "No volume found.");
 
-        // try to read from disk 1
-        ushort[] buffer2 = new ushort[256];
-        for (int i = 0; i < buffer2.Length; i++)
-        {
-            buffer2[i] = 0;
+        DirectoryEnumerator dirEnum = drive.Volumes[volumeIndex].Value.EnumerateRootDirectory();
+        Debug.WriteLine("Root directory contents:");
+        while(dirEnum.MoveNext()) {
+            Debug.Write("File: ");
+            char* fileName = stackalloc char[12];
+            for (int i = 0; i < 11; i++)
+            {
+                fileName[i] = (char)dirEnum.Current.FileName[i];
+            }
+            fileName[11] = '\0'; // null-terminate the string
+            Debug.WriteLine(fileName);
+            Debug.WriteLine("cool");
         }
-
-        GraphicsOutputProtocol.PrintLine("AHCI Controller read...");
-        fixed(ushort* buffer2Ptr = &buffer2[0])
-        {
-            Debug.WriteLine("Reading from disk 1...");
-            bool result = ahciController.Value.AhciBaseMemoryPtr->Ports[1].Read(0x0, 0x0, 1, buffer2Ptr);
-            Debug.WriteLine("Read complete.");
-            GraphicsOutputProtocol.Print("Result:");
-            GraphicsOutputProtocol.PrintLine(result.ToString());
-        }
-        GraphicsOutputProtocol.Print("Buffer:");
-        for (int i = 0; i < buffer2.Length; i++)
-        {
-            GraphicsOutputProtocol.Print(((nuint)buffer2[i]).ToString(true));
-            GraphicsOutputProtocol.Print(", ");
-        }
+        Debug.WriteLine("Done enumerating root directory.");
 
 
         while (true) { }

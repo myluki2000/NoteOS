@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
+using System.Diagnostics;
 
 namespace NoteOS.Ahci;
 
@@ -38,12 +39,25 @@ public unsafe struct HbaPort
     /// <summary>
     /// Read "count" sectors from sector offset "starth:startl" to "buf" with LBA48 mode.
     /// </summary>
-    public bool Read(nuint startl, uint starth, uint count, ushort* buf)
+    public bool Read(uint startl, uint starth, uint count, byte* buf)
     {
+        const bool ENABLE_DEBUG = false;
+        if (ENABLE_DEBUG)
+        {
+            Debug.Write("HbaPort.Read: startl=");
+            Debug.Write(startl);
+            Debug.Write(", starth=");
+            Debug.Write(starth);
+            Debug.Write(", count=");
+            Debug.Write(count);
+            Debug.Write(", buf=");
+            Debug.WriteLine((nuint)buf);
+        }
+
         this.InterruptStatus = 0xFFFFFFFF;
 
         int slot = this.FindCmdSlot();
-        
+
         if (slot == -1)
             return false;
 
@@ -66,6 +80,7 @@ public unsafe struct HbaPort
             entry = &(&cmdTable->PrdtEntry)[i];
 
             entry->DataBaseAddress = (uint)buf;
+            entry->DataBaseAddressUpper = (uint)((nuint)buf >> 32);
 
             entry->DoubleWord3 = 0;
             // set byte count to 8k - 1 (this value should always be set to 1 less than the actual value)
@@ -73,12 +88,13 @@ public unsafe struct HbaPort
                                                // set the interrupt on completion bit to 1
             entry->DoubleWord3 |= (uint)1 << 31;
 
-            buf += 4 * 1024; // 4k words
+            buf += 8 * 1024; // 8k bytes
             count -= 16; // 16 sectors
         }
         // last entry
         entry = &(&cmdTable->PrdtEntry)[cmdHeader->PhysicalRegionDescriptorTableLength - 1];
         entry->DataBaseAddress = (uint)buf;
+        entry->DataBaseAddressUpper = (uint)((nuint)buf >> 32);
 
         entry->DoubleWord3 = 0;
         // remaining bytes
@@ -120,11 +136,22 @@ public unsafe struct HbaPort
             return false;
         }
 
+        if (ENABLE_DEBUG)
+        {
+            Debug.Write("HbaPort.Read: issuing command on slot ");
+            Debug.WriteLine(slot);
+        }
         this.CommandIssue = (uint)1 << slot;
 
         // wait for completion
         while (true)
         {
+            if (ENABLE_DEBUG)
+            {
+                Debug.Write("HbaPort.Read: waiting for completion, CommandIssue=");
+                Debug.WriteLine(this.CommandIssue);
+            }
+
             // In some longer duration reads, it may be helpful to spin on the DPS bit 
             // in the PxIS port field as well (1 << 5)
             if ((this.CommandIssue & (1 << slot)) == 0)
@@ -146,10 +173,21 @@ public unsafe struct HbaPort
             return false;
         }
 
+        if (ENABLE_DEBUG)
+        {
+            Debug.Write("HbaPort.Read: completed successfully, read ");
+            Debug.Write(count);
+            Debug.Write("sectors from ");
+            Debug.Write(startl);
+            Debug.Write(":");
+            Debug.Write(starth);
+            Debug.Write(" to ");
+            Debug.WriteLine((nuint)buf);
+        }
         return true;
     }
 
-    public bool Write(uint startl, uint starth, uint count, ushort* buf)
+    public bool Write(uint startl, uint starth, uint count, byte* buf)
     {
         this.InterruptStatus = 0xFFFFFFFF;
 
@@ -186,12 +224,13 @@ public unsafe struct HbaPort
                                                // set the interrupt on completion bit to 1
             entry->DoubleWord3 |= (uint)1 << 31;
 
-            buf += 4 * 1024; // 4k words
+            buf += 8 * 1024; // 8k bytes
             count -= 16; // 16 sectors
         }
         // last entry
         entry = &(&cmdTable->PrdtEntry)[cmdHeader->PhysicalRegionDescriptorTableLength - 1];
         entry->DataBaseAddress = (uint)buf;
+        entry->DataBaseAddressUpper = (uint)((nuint)buf >> 32);
 
         entry->DoubleWord3 = 0;
         // remaining bytes
